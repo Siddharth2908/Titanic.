@@ -423,3 +423,140 @@ Rparttrainingdata3 <- Learn.Combined[1:891, features]
 Model.CV.Rpart.3 <- rpart.cvfunction(94622, Rparttrainingdata3, Modellinglabel.RF, Ctrl.1)
 Model.CV.Rpart.3
 prp(Model.CV.Rpart.3$finalModel, type = 0, extra = 1, under = TRUE)
+
+ # Predict the outcomes for the test data set. Testing the model generated
+
+Submit.2.rPart <- Learn.Combined[892:1309, features]
+
+Rpart.Predict<-predict(Model.CV.Rpart.3$finalModel, Submit.2.rPart, type = "class")
+table(Rpart.Predict)
+
+Submit.2.rPart.df<-data.frame(PassengerID = rep(892:1309), Survived = Rpart.Predict)
+write.csv(Submit.2.rPart.df, file = "RPART_Sub_2004_1.csv", row.names = FALSE)
+
+
+features <- c("Pclass", "New.Titles", "Ticket.Troop", "Avg.Fare")
+rf.train.temp <- Learn.Combined[1:891, features]
+
+set.seed(1234)
+rf.temp <- randomForest(x = rf.train.temp, y = Modellinglabel.RF, ntree = 1000)
+rf.temp
+
+
+test.submit.df <- Learn.Combined[892:1309, features]
+
+# Make predictions
+rf.preds <- predict(rf.temp, test.submit.df)
+table(rf.preds)
+
+# Write out a CSV file for submission to Kaggle
+submit.df <- data.frame(PassengerId = rep(892:1309), Survived = rf.preds)
+
+write.csv(submit.df, file = "RF_SUB_20160619_1.csv", row.names = FALSE)
+
+
+
+#
+# If we want to improve our model, a good place to start is focusing on where it
+# gets things wrong!
+#
+
+
+# First, let's explore our collection of features using mutual information to
+# gain some additional insight. Our intuition is that the plot of our tree
+# should align well to the definition of mutual information.
+#install.packages("infotheo")
+library(infotheo)
+
+mutinformation(Modellinglabel.RF, Learn.Combined$Pclass[1:891])
+mutinformation(Modellinglabel.RF, Learn.Combined$Sex[1:891])
+mutinformation(Modellinglabel.RF, Learn.Combined$SibSp[1:891])
+mutinformation(Modellinglabel.RF, Learn.Combined$Parch[1:891])
+mutinformation(Modellinglabel.RF, discretize(Learn.Combined$Fare[1:891]))
+mutinformation(Modellinglabel.RF, Learn.Combined$Titles[1:891])
+mutinformation(Modellinglabel.RF, Learn.Combined$Familysize[1:891])
+mutinformation(Modellinglabel.RF, Learn.Combined$New.Titles[1:891])
+mutinformation(Modellinglabel.RF, Learn.Combined$Ticket.Troop[1:891])
+mutinformation(Modellinglabel.RF, discretize(Learn.Combined$Avg.Fare[1:891]))
+
+
+# OK, now let's leverage the tsne algorithm to create a 2-D representation of our data 
+# suitable for visualization starting with folks our model gets right very often - folks
+# with titles other than 'Mr."
+#install.packages("Rtsne")
+library(Rtsne)
+most.correct <- Learn.Combined[Learn.Combined$New.Titles != "Mr.",]
+indexes <- which(most.correct$Survived != "None")
+
+
+# NOTE - Bug fix for original version. Rtsne needs a seed to ensure consistent
+# output between runs.
+set.seed(984357)
+tsne.1 <- Rtsne(most.correct[, features], check_duplicates = FALSE)
+ggplot(NULL, aes(x = tsne.1$Y[indexes, 1], y = tsne.1$Y[indexes, 2], 
+                 color = most.correct$Survived[indexes])) +
+  geom_point() +
+  labs(color = "Survived") +
+  ggtitle("tsne 2D Visualization of Features for New.Titles Other than 'Mr.'")
+
+
+# To get a baseline, let's use conditional mutual information on the tsne X and
+# Y features for females and boys in 1st and 2nd class. The intuition here is that
+# the combination of these features should be higher than any individual feature
+# we looked at above.
+condinformation(most.correct$Survived[indexes], discretize(tsne.1$Y[indexes,]))
+
+
+# As one more comparison, we can leverage conditional mutual information using
+# the top two features used in our tree plot - New.Titles and Pclass
+condinformation(Modellinglabel.RF, Learn.Combined[1:891, c("New.Titles", "Pclass")])
+
+
+# OK, now let's take a look at adult males since our model has the biggest 
+# potential upside for improving (i.e., the tree predicts incorrectly for 86
+# adult males). Let's visualize with tsne.
+misters <- Learn.Combined[Learn.Combined$New.Titles == "Mr.",]
+indexes <- which(misters$Survived != "None")
+
+tsne.2 <- Rtsne(misters[, features], check_duplicates = FALSE)
+ggplot(NULL, aes(x = tsne.2$Y[indexes, 1], y = tsne.2$Y[indexes, 2], 
+                 color = misters$Survived[indexes])) +
+  geom_point() +
+  labs(color = "Survived") +
+  ggtitle("tsne 2D Visualization of Features for New.Titles of 'Mr.'")
+
+
+# Now conditional mutual information for tsne features for adult males
+condinformation(misters$Survived[indexes], discretize(tsne.2$Y[indexes,]))
+
+
+#
+# Idea - How about creating tsne featues for all of the training data and
+# using them in our model?
+#
+tsne.3 <- Rtsne(Learn.Combined[, features], check_duplicates = FALSE)
+ggplot(NULL, aes(x = tsne.3$Y[1:891, 1], y = tsne.3$Y[1:891, 2], 
+                 color = Learn.Combined$Survived[1:891])) +
+  geom_point() +
+  labs(color = "Survived") +
+  ggtitle("tsne 2D Visualization of Features for all Training Data")
+
+# Now conditional mutual information for tsne features for all training
+condinformation(Learn.Combined$Survived[1:891], discretize(tsne.3$Y[1:891,]))
+
+# Add the tsne features to our data frame for use in model building
+Learn.Combined$tsne.x <- tsne.3$Y[,1]
+Learn.Combined$tsne.y <- tsne.3$Y[,2]
+
+features <- c("Pclass", "New.Titles", "Ticket.Troop", "Avg.Fare","tsne.x","tsne.y")
+rf.train.temp.tsne <- Learn.Combined[1:891, features]
+
+set.seed(1234)
+rf.temp <- randomForest(x = rf.train.temp.tsne, y = Modellinglabel.RF, ntree = 1000)
+rf.temp
+
+
+Rparttrainingdata4 <- Learn.Combined[1:891, features]
+Model.CV.Rpart.tsne <- rpart.cvfunction(94622, Rparttrainingdata4, Modellinglabel.RF, Ctrl.1)
+Model.CV.Rpart.tsne
+prp(Model.CV.Rpart.tsne$finalModel, type = 0, extra = 1, under = TRUE)
