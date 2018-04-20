@@ -1,6 +1,9 @@
 setwd("C:/Siddhartha/Personal Documents/BOK/Data Science/Tuturial/Titanic Data Set")
+# Upload files into R
 train.learn<-read.csv(file = "train.csv", header = TRUE)
 test.learn<-read.csv(file = "test.csv", header = TRUE)
+
+# Explore the data to understand the current state and spread
 View(test.learn)
 View(train.learn)
 test.survived<-data.frame(Survived = rep("None",nrow(test.learn)), test.learn[,])
@@ -29,7 +32,7 @@ mrses<-Learn.Combined[which(str_detect(Learn.Combined$Name, "Mrs.")),]
 mrses[1:5,]
 Men<-Learn.Combined[which(train.learn$Sex == "male"),]
 Men[1:5,]
-#create an utility function to extract set of characters from a string
+#create an utility function to extract set of characters from a string - Feature Engineering
 ExtractTitle <- function(Name){
   Name<-as.character(Name)
   if(length(grep("Miss.", Name))>0){
@@ -49,6 +52,7 @@ for (i in 1:nrow(Learn.Combined)){
   Titles <-c(Titles, ExtractTitle(Learn.Combined[i,"Name"]))
 }
 Learn.Combined$Titles <- as.factor(Titles)
+# Explore the data further
 View(Learn.Combined)
 ggplot(Learn.Combined[1:891,],aes(x = Titles, fill = Survived))+
   geom_bar(stat = "count")+
@@ -240,7 +244,7 @@ table(Perdict1.RF)
 Submit.1<-data.frame(PassengerID = rep(892:1309),Survived = Perdict1.RF)
 write.csv(Submit.1, file = "RF_Sub_04082018_1.csv", row.names = FALSE)
 
-# Use cross validation to improve the accuracy of prediction
+# Use cross validation to improve the accuracy of prediction - 10 Fold
 library(caret)
 library(doSNOW)
 set.seed(2348)
@@ -255,6 +259,7 @@ Model.RFCV.1<-train(x = Modellingdata.RF4, y = Modellinglabel.RF, method = "rf",
 stopCluster(cl)
 Model.RFCV.1
 
+# Use cross validation to improve the accuracy of prediction - 5 Fold
 set.seed(2348)
 cv.folds<-createMultiFolds(Modellinglabel.RF,k=5,times = 10)
 table(Modellinglabel.RF)
@@ -267,6 +272,7 @@ Model.RFCV.2<-train(x = Modellingdata.RF4, y = Modellinglabel.RF, method = "rf",
 stopCluster(cl)
 Model.RFCV.2
 
+# Use cross validation to improve the accuracy of prediction - 3 Fold
 set.seed(2348)
 cv.folds<-createMultiFolds(Modellinglabel.RF,k=3,times = 10)
 table(Modellinglabel.RF)
@@ -282,6 +288,8 @@ Model.RFCV.1
 library(rpart)
 library(rpart.plot)
 
+# Improve the model using hyper parameter tuning   
+# Create a function to run rpart modelling - Decision Tree
 rpart.cvfunction<-function(seed, training, labels, ctrl) {
   cl<-makeCluster(3, type = "SOCK")
   registerDoSNOW(cl)
@@ -364,6 +372,7 @@ ggplot(First.Mr.df, aes(x=Fare, fill = Survived))+
   geom_density(alpha = 0.5)+
   ggtitle("1st Class survival by fare")
 
+# Feature engineering to improve the accuracy
 Ticket.Troop <- rep(0,nrow(Learn.Combined))
 Avg.Fare<-rep(0.0, nrow(Learn.Combined))
 Tickets <- unique(Learn.Combined$Ticket)
